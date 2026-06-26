@@ -312,13 +312,16 @@ def tokenize_query(query):
                 tokens.append(current.strip())
                 current = ""
         elif char in (' ', '\t') and not in_quotes and in_parens == 0:
-            # Check if we're at a NEAR/NOTNEAR operator
+            # Look ahead to see if next token is NEAR/NOTNEAR
             if current.strip():
                 rest = query[i:].lstrip()
                 if rest.upper().startswith('NEAR/') or rest.upper().startswith('NOTNEAR/'):
-                    # Don't split - let it accumulate with the operator
+                    # Keep building - don't split
                     current += char
+                    i += 1
+                    continue
                 else:
+                    # Normal split
                     tokens.append(current.strip())
                     current = ""
             else:
@@ -577,6 +580,7 @@ def search():
         # Log to console for debugging
         print(f"\n=== QUERY DEBUG ===")
         print(f"Input: {q}")
+        print(f"Tokens: {tokenize_query(q)}")
         print(f"WHERE: {where_clause}")
         print(f"PARAMS: {params}")
         print(f"SQL: {sql}")
