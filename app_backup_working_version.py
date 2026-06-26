@@ -286,7 +286,7 @@ def seconds_to_timestamp(seconds):
 
 
 def tokenize_query(query):
-    """Tokenize query while respecting quoted phrases and parentheses."""
+    """Tokenize query while respecting quoted phrases, parentheses, and NEAR/NOTNEAR operators."""
     tokens = []
     current = ""
     in_quotes = False
@@ -312,9 +312,17 @@ def tokenize_query(query):
                 tokens.append(current.strip())
                 current = ""
         elif char in (' ', '\t') and not in_quotes and in_parens == 0:
+            # Check if we're at a NEAR/NOTNEAR operator
             if current.strip():
-                tokens.append(current.strip())
-            current = ""
+                rest = query[i:].lstrip()
+                if rest.upper().startswith('NEAR/') or rest.upper().startswith('NOTNEAR/'):
+                    # Don't split - let it accumulate with the operator
+                    current += char
+                else:
+                    tokens.append(current.strip())
+                    current = ""
+            else:
+                current = ""
         else:
             current += char
         
