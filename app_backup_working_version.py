@@ -9,8 +9,261 @@ DB_FILE = "subtitles.db"
 app = Flask(__name__)
 
 HTML = """
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Subtitle Search</title>
+
+<style>
+
+body{
+    font-family:Arial,sans-serif;
+    margin:20px;
+    background:#f5f5f5;
+}
+
+h1{
+    margin-bottom:20px;
+}
+
+.search-box{
+    width:100%;
+    padding:15px;
+    font-size:24px;
+    border:1px solid #ccc;
+    border-radius:8px;
+    margin-bottom:20px;
+}
+
+.stats{
+    margin-bottom:20px;
+    color:#555;
+}
+
+.results-grid{
+    display:grid;
+    grid-template-columns:repeat(4,minmax(0,1fr));
+    gap:12px;
+}
+
+@media(max-width:1600px){
+    .results-grid{
+        grid-template-columns:repeat(3,1fr);
+    }
+}
+
+@media(max-width:1200px){
+    .results-grid{
+        grid-template-columns:repeat(2,1fr);
+    }
+}
+
+@media(max-width:768px){
+    .results-grid{
+        grid-template-columns:1fr;
+    }
+}
+
+.video-card{
+    background:white;
+    border-radius:10px;
+    overflow:hidden;
+    box-shadow:0 2px 8px rgba(0,0,0,.1);
+}
+
+.player-wrapper{
+    width:100%;
+    height:260px;
+    background:#000;
+    overflow:hidden;
+}
+
+.thumbnail{
+    width:100%;
+    height:260px;
+    object-fit:cover;
+    cursor:pointer;
+    display:block;
+}
+
+.video-title{
+    padding:8px 10px 0;
+    font-size:14px;
+    font-weight:bold;
+    line-height:1.3;
+    display:-webkit-box;
+    -webkit-line-clamp:2;
+    -webkit-box-orient:vertical;
+    overflow:hidden;
+}
+
+.channel{
+    padding:4px 10px;
+    color:#666;
+    font-size:12px;
+}
+
+.matches{
+    max-height:180px;
+    overflow-y:auto;
+    padding:8px 10px;
+}
+
+.match{
+    margin-bottom:8px;
+    line-height:1.35;
+    font-size:12px;
+}
+
+.timestamp{
+    color:#1976d2;
+    font-weight:bold;
+    cursor:pointer;
+    text-decoration:none;
+    margin-right:8px;
+}
+
+.highlight{
+    color:#1976d2;
+    cursor:pointer;
+    font-weight:bold;
+}
+
+iframe{
+    width:100%;
+    height:260px;
+    border:none;
+}
+
+</style>
+
+<script>
+function loadVideo(videoId,startTime){
+    const container = document.getElementById("player_" + videoId);
+    container.innerHTML = `
+        <iframe
+            allowfullscreen
+            allow="autoplay"
+            src="https://www.youtube.com/embed/${videoId}?autoplay=1&start=${startTime}">
+        </iframe>
+    `;
+}
+function insertTemplate(type){
+
+    const q = document.querySelector('input[name="q"]');
+
+    const templates = {
+        and: ' term1 term2 ',
+        or: ' term1 | term2 ',
+        phrase: ' "exact phrase" ',
+        near: ' term1 NEAR/10 term2 ',
+        notnear: ' term1 NOTNEAR/10 term2 ',
+        exclude: ' -word ',
+        group: ' (term1 | term2) ',
+        proximity: ' "exact phrase"~10 '
+    };
+
+    q.value += templates[type];
+    q.focus();
+}
+</script>
+
+</head>
+
+<body>
+
 <h1>Subtitle Search</h1>
-<!-- Include your HTML template here -->
+
+<form>
+<div style="margin-bottom:15px;">
+
+<button type="button" onclick="insertTemplate('and')">AND</button>
+
+<button type="button" onclick="insertTemplate('or')">OR</button>
+
+<button type="button" onclick="insertTemplate('phrase')">PHRASE</button>
+
+<button type="button" onclick="insertTemplate('near')">NEAR</button>
+
+<button type="button" onclick="insertTemplate('notnear')">NOTNEAR</button>
+
+<button type="button" onclick="insertTemplate('exclude')">EXCLUDE</button>
+
+<button type="button" onclick="insertTemplate('group')">GROUP</button>
+
+<button type="button" onclick="insertTemplate('proximity')">PROXIMITY</button>
+
+</div>
+<input
+class="search-box"
+type="text"
+name="q"
+value="{{query}}"
+placeholder="Search subtitles..."
+autocomplete="off">
+</form>
+
+<div class="stats">
+{{video_count}} videos found
+</div>
+
+<div class="results-grid">
+
+{% for video in videos %}
+
+<div class="video-card">
+
+<div class="player-wrapper" id="player_{{video.video_id}}">
+
+<img
+class="thumbnail"
+src="https://i.ytimg.com/vi/{{video.video_id}}/mqdefault.jpg"
+onclick="loadVideo('{{video.video_id}}',0)">
+
+</div>
+
+<div class="video-title">
+{{video.video_id}}
+</div>
+
+<div class="channel">
+{{video.channel_name}}
+</div>
+
+<div class="matches">
+
+{% for m in video.matches %}
+
+<div class="match">
+
+<a
+class="timestamp"
+href="#"
+onclick="loadVideo('{{video.video_id}}',{{m.seconds}}); return false;">
+
+{{m.timestamp}}
+
+</a>
+
+<span onclick="loadVideo('{{video.video_id}}',{{m.seconds}});">
+{{m.text|safe}}
+</span>
+
+</div>
+
+{% endfor %}
+
+</div>
+
+</div>
+
+{% endfor %}
+
+</div>
+
+</body>
+</html>
 """
 
 
