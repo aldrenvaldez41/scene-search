@@ -285,11 +285,17 @@ def highlight_text(text, query):
 def search():
     q = request.args.get("q", "").strip()
     videos = []
+    debug_info = {}
 
     if q:
         conn = get_db()
         
         where_clause, params = build_sql_from_query(q)
+        
+        # Store debug info
+        debug_info['query'] = q
+        debug_info['where_clause'] = where_clause
+        debug_info['params'] = params
         
         sql = f"""
             SELECT
@@ -305,11 +311,22 @@ def search():
             LIMIT 3000
         """
         
+        debug_info['full_sql'] = sql
+        
+        # Log to console for debugging
+        print(f"\n=== QUERY DEBUG ===")
+        print(f"Input: {q}")
+        print(f"WHERE: {where_clause}")
+        print(f"PARAMS: {params}")
+        print(f"SQL: {sql}")
+        print(f"===================\n")
+        
         try:
             results = conn.execute(sql, params).fetchall()
         except Exception as e:
             print(f"Database error: {e}")
             results = []
+            debug_info['error'] = str(e)
         finally:
             conn.close()
         
@@ -338,7 +355,8 @@ def search():
         HTML,
         query=q,
         videos=videos,
-        video_count=len(videos)
+        video_count=len(videos),
+        debug_info=debug_info
     )
 
 
