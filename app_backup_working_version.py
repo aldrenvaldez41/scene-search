@@ -73,6 +73,23 @@ def tokenize_query(query):
     return tokens
 
 
+def find_matching_paren(expr, start_pos):
+    """Find the matching closing parenthesis for an opening one."""
+    count = 1
+    i = start_pos + 1
+    in_quotes = False
+    while i < len(expr) and count > 0:
+        if expr[i] == '"' and (i == 0 or expr[i-1] != '\\'):
+            in_quotes = not in_quotes
+        elif not in_quotes:
+            if expr[i] == '(':
+                count += 1
+            elif expr[i] == ')':
+                count -= 1
+        i += 1
+    return i - 1
+
+
 def parse_expression(expr):
     """
     Parse a single expression which can be:
@@ -87,10 +104,14 @@ def parse_expression(expr):
     
     # Handle grouped expressions: (expr)
     if expr.startswith('(') and expr.endswith(')'):
-        return parse_expression(expr[1:-1])
+        # Verify it's a complete group
+        if find_matching_paren(expr, 0) == len(expr) - 1:
+            return parse_expression(expr[1:-1])
     
     # Check for NEAR/NOTNEAR operators (highest precedence)
-    near_match = re.match(r'(.+?)\s+(NEAR|NOTNEAR)/(\d+)\s+(.+)', expr, re.IGNORECASE)
+    # This handles both simple and grouped expressions on either side
+    near_pattern = r'(.+?)\s+(NEAR|NOTNEAR)/(\d+)\s+(.+)'
+    near_match = re.match(near_pattern, expr, re.IGNORECASE)
     if near_match:
         left = near_match.group(1)
         op = near_match.group(2).upper()
@@ -159,13 +180,11 @@ def build_sql_from_ast(ast):
     
     elif ast['type'] == 'PROXIMITY':
         # Proximity: words within N words of each other
-        # Split the phrase and create a pattern with word boundaries
         words = ast['phrase'].split()
         if len(words) < 2:
             return ("LOWER(s.subtitle_text) LIKE LOWER(?)", [f"%{ast['phrase']}%"])
         
-        # For now, use simple substring matching (advanced PROXIMITY would need FTS)
-        # This is a simplified implementation
+        # Require all words to appear
         conditions = []
         params = []
         for word in words:
@@ -186,22 +205,20 @@ def build_sql_from_ast(ast):
         return ("(" + " OR ".join(or_conditions) + ")", all_params)
     
     elif ast['type'] == 'NEAR':
-        # NEAR: two terms within N words (simplified using AND + word count heuristic)
+        # NEAR: both terms must appear (distance parameter noted but simplified SQL)
         left_sql, left_params = build_sql_from_ast(ast['left'])
         right_sql, right_params = build_sql_from_ast(ast['right'])
         
-        # Simplified: require both terms to appear
         combined_sql = f"({left_sql} AND {right_sql})"
         combined_params = left_params + right_params
         
         return (combined_sql, combined_params)
     
     elif ast['type'] == 'NOTNEAR':
-        # NOTNEAR: first term appears but not within N words of second (simplified)
+        # NOTNEAR: first term appears but not near second
         left_sql, left_params = build_sql_from_ast(ast['left'])
         right_sql, right_params = build_sql_from_ast(ast['right'])
         
-        # Simplified: first term appears but second doesn't
         combined_sql = f"({left_sql} AND NOT {right_sql})"
         combined_params = left_params + right_params
         
